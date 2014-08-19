@@ -1,5 +1,6 @@
 require 'bundler/setup'
 Bundler.require(:default, :test)
+require "date"
 
 database_configurations = YAML::load(File.open('./db/config.yml'))
 development_configuration = database_configurations['development']
@@ -46,7 +47,7 @@ def events_menu
   while option != "X"
   puts "\nEvent Manager"
   puts "[ A ] = to add an event"
-  puts "[ E ] = to edit and event"
+  puts "[ E ] = to edit an event"
   puts "[ D ] = to delete an event"
   puts "[ V ] = to view all events"
   puts "[ F ] = to find a specific event"
@@ -59,13 +60,13 @@ def events_menu
     when "A"
      add_event
     when "E"
-     edit_event
+      find_event(option)
     when "D"
-      delete_event
+      find_event(option)
     when "V"
       view_events
     when "F"
-      find_event
+      find_event(option)
     when "T"
       view_events_time_period
     when "M"
@@ -109,14 +110,143 @@ def view_events
   puts"\nThe list of all events\n"
   event_array = Event.all.order(start_date: :asc)
   event_array.each_with_index do |event, index|
-    puts "#{index+1}. #{event.description} on #{event.start_date} "
+    puts "#{index+1}. #{event.description} on #{event.start_date} at #{event.location}"
   end
 end
 
-def edit_event
+def find_event(option)
+  puts " You can find an event using date, name, or location."
+  puts "Enter 'D' to search by date, or 'N' to search by name or 'L' to search by location"
+  choice=gets.chomp.upcase
+  selected_events = []
+  case choice
+    when 'D'
+      puts " Please enter a start date to search for (YYYY-MM-DD)"
+      date=gets.chomp
+      if date =~ /\d\d\d\d-\d\d-\d\d/
+        selected_events = Event.where("TO_CHAR(start_date,'YYYY-MM-DD') LIKE '#{date}%'")
+      end
+    when 'N'
+      puts " Please enter the event name to search for"
+      description=gets.chomp
+      selected_events = Event.where(description: description)
+    when 'L'
+      puts " Please enter the event location to search for"
+      location=gets.chomp
+      selected_events = Event.where(location: location)
+  end
+  if selected_events.empty?
+    puts "No events were found with your selection criteria"
+  else
+    puts "Here is a list of your selected events"
+    selected_events.each_with_index do |event, index|
+      puts "#{index+1}. #{event.description} on #{event.start_date} until #{event.end_date} at #{event.location}"
+    end
+    if option == "D"
+      delete_event(selected_events)
+    elsif option == "E"
+      edit_event(selected_events)
+    elsif option == "F"
+      puts "Would you like to edit ('E') or delete ('D') an event? Enter any other key to skip"
+      new_option = gets.chomp
+      if new_option == "D"
+        delete_event(selected_events)
+      elsif new_option == "E"
+        edit_event(selected_events)
+      end
+    end
+  end
 end
 
-def delete_event
+def edit_event(selected_events)
+  puts" \nPlease enter the index of the event you'd like to edit"
+  event_index = gets.chomp.to_i
+  if event_index == 0 || event_index > selected_events.length
+    puts "Invalid index, please try again"
+  else
+    event = selected_events[event_index-1]
+    update_hash = Hash.new
+    puts" \nPlease review each field and enter any changes"
+    puts" Event Name: #{event.description}"
+    puts" New name:"
+    new_description = nil
+    new_description=gets.chomp
+    if new_description
+      update_hash[:description] = new_description
+    end
+
+    puts" Location: #{event.location}"
+    puts" New Location:"
+    new_location = nil
+    new_location=gets.chomp
+    if new_location
+      update_hash[:location] = new_location
+    end
+
+    event_start_date = DateTime.strptime(event.start_date, '%Y-%m-%d')
+    puts" Start Date: #{event_start_date}"
+    puts" New Start Date: "
+    new_start_date = nil
+    new_start_date=gets.chomp
+
+    event_start_time = DateTime.strptime(event.start_date,'%H:%M')
+    puts" Start Time: #{event_start_date}"
+    puts" New Start time: "
+    new_start_time = nil
+    new_start_time=gets.chomp
+    if new_start_date && new_start_date =~ /\d\d\d\d-\d\d-\d\d/ && new_start_time
+      new_start_date << " " << new_start_time
+      update_hash[:start_date] = new_start_date
+    elsif new_start_date && new_start_date =~ /\d\d\d\d-\d\d-\d\d/
+      new_start_date << event.start_time
+      update_hash[:start_date] = new_start_date
+    elsif new_start_time
+      new_start_date = event.start_date << " " << new_start_time
+      update_hash[:start_date] = new_start_date
+    end
+
+    event_end_date = DateTime.strptime(event.end_date, '%Y-%m-%d')
+    puts" End Date: #{event_end_date}"
+    puts" New End Date: "
+    new_end_date = nil
+    new_end_date=gets.chomp
+
+    event_end_time = DateTime.strptime(event.end_date,'%H:%M')
+    puts" End Time: #{event_end_time}"
+    puts" New End Time: "
+    new_end_time = nil
+    new_end_time=gets.chomp
+    if new_end_date && new_end_date =~ /\d\d\d\d-\d\d-\d\d/ && new_end_time
+      new_end_date << " " << new_end_time
+      update_hash[:end_date] = new_end_date
+    elsif new_end_date && new_end_date =~ /\d\d\d\d-\d\d-\d\d/
+      new_end_date << event.end_time
+      update_hash[:end_date] = new_end_date
+    elsif new_end_time
+      new_end_date = event.end_date << " " << new_end_time
+      update_hash[:end_date] = new_end_date
+    end
+
+  end
+  event.update(update_hash)
+  puts"The event #{event.description} has been updated."
+end
+
+def delete_event(selected_events)
+  puts" \nPlease enter the index of the event you'd like to delete"
+  event_index = gets.chomp.to_i
+  if event_index == 0 || event_index > selected_events.length
+    puts "Invalid index #{event_index}, please try again"
+  else
+    event = selected_events[event_index-1]
+    puts "Do you REALLY want to delete this event? This action cannot be undone!"
+    puts "Enter 'Y' or 'YES' to delete, any other key to skip"
+    answer = gets.chomp.upcase.slice(0,1)
+    if answer == "Y"
+      puts "#{event.description} on #{event.start_date} at #{event.location} has been deleted"
+      event.destroy;
+    end
+  end
 end
 
 def to_do_menu
