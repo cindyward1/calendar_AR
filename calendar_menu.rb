@@ -1,6 +1,5 @@
 require 'bundler/setup'
 Bundler.require(:default, :test)
-require "date"
 
 database_configurations = YAML::load(File.open('./db/config.yml'))
 development_configuration = database_configurations['development']
@@ -94,7 +93,7 @@ def add_event
   puts "> Please enter the event end time"
   end_time=gets.chomp
   end_date << " " << end_time
-  puts "> Please enter 'daily' or 'weekly' or 'monthly' if this is a recurring event"
+  puts "> Please enter 'daily', 'weekly', 'monthly' or 'yearly' if this is a recurring event"
   repeating=gets.chomp
   event = Event.new({:description => description, :location=> location, :start_date => start_date,
                   :end_date=> end_date, :repeating=>repeating})
@@ -107,11 +106,20 @@ def add_event
 end
 
 def view_events
-  puts"\nThe list of all events\n"
-  event_array = Event.all.order(start_date: :asc)
-  event_array.each_with_index do |event, index|
-    puts "#{index+1}. #{event.description} on #{event.start_date} at #{event.location}"
+  puts "\nWould you like to see all 'A' or only future 'F' events? (Default is future only)"
+  option = gets.chomp.upcase
+  if option == "A"
+    puts "\nThe list of all events\n\n"
+    event_array = Event.all.order(start_date: :asc)
+  else
+    puts "\nThe list of future events\n\n"
+    today = Date.today
+    event_array = Event.where("start_date >= CURRENT_DATE").order(start_date: :asc)
   end
+  event_array.each_with_index do |event, index|
+      puts "#{index+1}. #{event.description} on #{event.start_date} at #{event.location}"
+  end
+  puts "\n"
 end
 
 def find_event(option)
@@ -169,67 +177,67 @@ def edit_event(selected_events)
     puts" \nPlease review each field and enter any changes"
     puts" Event Name: #{event.description}"
     puts" New name:"
-    new_description = nil
+    new_description = ""
     new_description=gets.chomp
-    if new_description
+    if new_description != ""
       update_hash[:description] = new_description
     end
 
     puts" Location: #{event.location}"
     puts" New Location:"
-    new_location = nil
+    new_location = ""
     new_location=gets.chomp
-    if new_location
+    if new_location != ""
       update_hash[:location] = new_location
     end
 
-    event_start_date = DateTime.strptime(event.start_date, '%Y-%m-%d')
+    event_start_date = event.start_date.strftime('%F')
     puts" Start Date: #{event_start_date}"
     puts" New Start Date: "
-    new_start_date = nil
+    new_start_date = ""
     new_start_date=gets.chomp
 
-    event_start_time = DateTime.strptime(event.start_date,'%H:%M')
-    puts" Start Time: #{event_start_date}"
+    event_start_time = event.start_date.strftime('%H:%M')
+    puts" Start Time: #{event_start_time}"
     puts" New Start time: "
-    new_start_time = nil
+    new_start_time = ""
     new_start_time=gets.chomp
-    if new_start_date && new_start_date =~ /\d\d\d\d-\d\d-\d\d/ && new_start_time
-      new_start_date << " " << new_start_time
+    if new_start_date != "" && new_start_date =~ /\d\d\d\d-\d\d-\d\d/ && new_start_time != ""
+      new_start_date = "TO_DATE(" + new_start_date + " " + new_start_time + ")"
       update_hash[:start_date] = new_start_date
-    elsif new_start_date && new_start_date =~ /\d\d\d\d-\d\d-\d\d/
-      new_start_date << event.start_time
+    elsif new_start_date != "" && new_start_date =~ /\d\d\d\d-\d\d-\d\d/
+      new_start_date = "TO_DATE(" + new_start_date + " " + event_start_time + ")"
       update_hash[:start_date] = new_start_date
-    elsif new_start_time
-      new_start_date = event.start_date << " " << new_start_time
+    elsif new_start_time != ""
+      new_start_date = "TO_DATE(" + event_start_date + " " + new_start_time + ")"
       update_hash[:start_date] = new_start_date
     end
 
-    event_end_date = DateTime.strptime(event.end_date, '%Y-%m-%d')
+    event_end_date = event.end_date.strftime('%F')
     puts" End Date: #{event_end_date}"
     puts" New End Date: "
-    new_end_date = nil
+    new_end_date = ""
     new_end_date=gets.chomp
 
-    event_end_time = DateTime.strptime(event.end_date,'%H:%M')
+    event_end_time = event.end_date.strftime('%H:%M')
     puts" End Time: #{event_end_time}"
     puts" New End Time: "
-    new_end_time = nil
+    new_end_time = ""
     new_end_time=gets.chomp
-    if new_end_date && new_end_date =~ /\d\d\d\d-\d\d-\d\d/ && new_end_time
-      new_end_date << " " << new_end_time
+    if new_end_date != "" && new_end_date =~ /\d\d\d\d-\d\d-\d\d/ && new_end_time != ""
+      new_end_date = "TO_DATE(" + new_end_date + " " + new_end_time + ")"
       update_hash[:end_date] = new_end_date
-    elsif new_end_date && new_end_date =~ /\d\d\d\d-\d\d-\d\d/
-      new_end_date << event.end_time
+    elsif new_end_date != "" && new_end_date =~ /\d\d\d\d-\d\d-\d\d/
+      new_end_date = "TO_DATE(" + new_end_date + " " + event_end_time + ")"
       update_hash[:end_date] = new_end_date
-    elsif new_end_time
-      new_end_date = event.end_date << " " << new_end_time
+    elsif new_end_time != ""
+      new_end_date = "TO_DATE(" + event_end_date + " " + new_end_time + ")"
       update_hash[:end_date] = new_end_date
     end
 
   end
   event.update(update_hash)
-  puts"The event #{event.description} has been updated."
+  puts "The event #{event.description} has been updated."
 end
 
 def delete_event(selected_events)

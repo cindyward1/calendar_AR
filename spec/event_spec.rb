@@ -7,7 +7,6 @@ describe Event do
     expect(test_event.save).to eq false
   end
 
-
   it "ensures the user enters an event location" do
     test_event = Event.new({:location=>nil})
     expect(test_event.save).to eq false
